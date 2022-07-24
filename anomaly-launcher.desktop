@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=S.T.A.L.K.E.R. Anomaly Launcher
+Exec=/usr/bin/anomaly
+Type=Application
+StartupNotify=true
+Path=/usr/bin
+Icon=anomaly-main
+StartupWMClass=anomaly.exe

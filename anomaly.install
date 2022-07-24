@@ -1,0 +1,39 @@
+
+#
+#   Remove content that was copied over to the shared wine profile
+#   Note: save files are not in the shared wine profile, they are 
+#         not removed
+#
+
+
+# 
+#   From /usr/bin/${pkgname}
+#
+pkgname="anomaly"
+export WINEPREFIX="$HOME/.wine64-win10"         # wine prefix, no trailing /
+export WINEARCH="win64"                         # win32, win64
+export WINEDLLOVERRIDES=""                      # ex : "dbghelp=n,b";
+export WINEDEBUG=""                             # ex. -all -fps
+winlibs="d9vk040 dxvk160 d3dcompiler_47 quartz vcrun6 d3dx9 d3dx11_43"                       
+                                                # install windows libraries: corefonts mfc42 dotnet40 ...
+winver="win10"                                  # win10, xp, ...
+
+
+#post_install() {
+#}
+
+
+post_remove() {
+    
+  echo " -> Cleaning user directories"
+  shopt -s nullglob   # Allow null globs
+  for d in /home/*/${WINEPREFIX}/drive_c/${pkgname}; do 
+    echo "     -> $d"; 
+    rm -rf "$d"
+  done
+  for d in /home/*/${WINEPREFIX}/drive_c/${pkgname}_*; do 
+    echo "     -> $d"; 
+    rm -rf "$d"
+  done
+  
+}

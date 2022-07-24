@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=S.T.A.L.K.E.R. Anomaly DX11
+Exec=/usr/bin/anomaly --dx11
+Type=Application
+StartupNotify=true
+Path=/usr/bin
+Icon=anomaly-main
+StartupWMClass=anomaly.exe

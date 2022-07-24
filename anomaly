@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# This is a windows application. It runs in wine, so as per 
+# recommendations of the arch wiki regarding packaging of wine 
+# applications [1] : 
+#   * The game files are installed in /usr/share/${pkgname}
+#   * The application is launched with a wrapper (this script) that 
+#     takes care of initializing a wine environment for each user
+#
+# [1] https://wiki.archlinux.org/index.php/Wine_package_guidelines
+#
+
+# Usual bash flags
+set -euo pipefail       # Exit on 1/ nonzero exit code 2/ unassigned variable 3/ pipe error
+shopt -s nullglob       # Allow null globs
+shopt -s expand_aliases # Enable alias (not on by default in un-interactive shells)
+#set -o xtrace          # Show xtrace
+
+
+# References
+#  - https://www.reddit.com/r/SolusProject/comments/dc2xep/wine_gaming_guide_to_running_anomaly_mod_on_solus/
+#  - https://www.moddb.com/mods/stalker-anomaly/forum/thread/anomaly-in-wine-linux-and-other-things
+
+
+pkgname="anomaly"
+export WINEPREFIX="$HOME/.wine-anomaly"                 # wine prefix, no trailing /
+export WINEARCH="win64"                                 # win32, win64
+export WINEDLLOVERRIDES="d3d...=n;dxgi=n;quartz=n,b"    # ex : "dbghelp=n,b";
+export WINEDEBUG=""                                     # ex. -all -fps
+winlibs="d9vk040 dxvk160 d3dcompiler_47 quartz vcrun6 d3dx9 d3dx11_43" 
+                                                        # Install windows libraries. No dotnet40 !!
+winver="win10"                                          # win10, xp, ...
+
+
+# All files (file/dir) that the game may modify, starting at /usr/local/${pkgname}
+writables=(
+    "AnomalyLauncher.cfg"
+    "commandline.txt"
+    "gamedata"
+    # "appdata"         # Contains saves, handled individually
+)
+
+
+# First-time setup
+alias notify="[ -x $(which notify-send) ] && notify-send --app-name=${pkgname} --icon=${pkgname}-main "
+if [ ! -d "${WINEPREFIX}/drive_c/${pkgname}_writable" ]; then
+    notify "Performing 1st time setup"
+    
+    # Initialize prefix
+    mkdir -p "${WINEPREFIX}"
+    wineboot
+    winetricks sandbox
+    winetricks ${winver}
+    notify "Installing libraries, this may take time"
+    winetricks ${winlibs}
+        
+    # Configure UnionFS in prefix
+    mkdir -p "${WINEPREFIX}/drive_c/${pkgname}_writable/"
+    mkdir -p "${WINEPREFIX}/drive_c/${pkgname}_union/"
+    for f in ${writables[@]}; do
+        cp -r "/usr/share/${pkgname}/${f}" "${WINEPREFIX}/drive_c/${pkgname}_writable/${f}"
+    done
+    
+    # Configure saves in ~/Gamedata
+    mkdir -p "${HOME}/Gamesaves/${pkgname}"
+    rm -rf "${WINEPREFIX}/drive_c/${pkgname}_writable/appdata"
+    cp --recursive --no-clobber \
+      "/usr/share/${pkgname}/appdata" \
+      "${HOME}/Gamesaves/${pkgname}/"
+    ln -s "${HOME}/Gamesaves/${pkgname}/appdata" "${WINEPREFIX}/drive_c/${pkgname}_writable/appdata"
+fi
+
+
+# Mount unionfs
+unionfs \
+  "${WINEPREFIX}/drive_c/${pkgname}_writable/"=RW:"/usr/share/${pkgname}/"=RO \
+  "${WINEPREFIX}/drive_c/${pkgname}_union"
+if [ $? -ne 0 ]; then
+    # NB: non-zero exit code -> exit -> never executed
+    notify "An instance is already running\n(unionFS already mounted)."
+    exit 1
+fi
+trap "echo unmounting unionFS; cd; umount ${WINEPREFIX}/drive_c/${pkgname}_union;" EXIT
+cd "${WINEPREFIX}/drive_c/${pkgname}_union"
+
+
+# Start application in wine
+# DXVK_HUD=1 [...]
+if [ $# -ge 1 ] && [ "$1" == "--dx11" ]; then 
+    shift
+    notify "Starting with wine"
+    wine ${WINEPREFIX}/drive_c/${pkgname}_union/bin/AnomalyDX11.exe "$@"
+elif [ $# -ge 1 ] && [ "$1" == "--dx9" ]; then 
+    shift
+    notify "Starting with wine"
+    wine ${WINEPREFIX}/drive_c/${pkgname}_union/bin/AnomalyDX9.exe "$@"
+else 
+    # Launcher hands on exit
+    notify "Starting with wine"
+    wine ${WINEPREFIX}/drive_c/${pkgname}_union/AnomalyLauncher.exe "$@"
+fi
+exit 0
